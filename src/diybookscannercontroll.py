@@ -32,10 +32,10 @@ chdkptpBin=os.path.expandvars("$HOME")+"/opt/chdkptp/chdkptp.sh"
 diybookscanercontrol_dirs = {
         "scriptdir":os.path.dirname(os.path.abspath(__file__)), 
         "logdir":os.path.dirname(os.path.abspath(__file__))+"/log",
-        "bookdir":os.path.expandvars("$HOME")+"/tmp/",
+        "bookdir":os.path.expandvars("$HOME")+"/book/",
         "tmp_nospaces":"/tmp",
         "luadir":os.path.dirname(os.path.abspath(__file__))+"/lua",
-        "datadir":os.path.dirname(os.path.abspath(__file__))+"/datadir"
+        "datadir":os.path.dirname(os.path.abspath(__file__))+"/../datadir"
 }
 
 imagenumber = 0
@@ -197,6 +197,7 @@ class ShootThread(threading.Thread):
         self.filename = filename
         
     def run(self): 
+        print(self.filename)
         self.cam.call("remoteshoot %s"%(self.filename))        
 
 class WaitThread(threading.Thread): 
@@ -323,7 +324,7 @@ while not doQuit:
             for c in cams:
                 c.call("lua set_aflock(1)")
         elif choosed == '5':
-            myPrint("+ zoom in | - zoom out | 0 exit \n")
+            myPrint("1 zoom in | 3 zoom out | 0 exit \n")
             for c in cams:
                 myPrint("cam %s\n" % c.getName())
                 while True:
@@ -332,9 +333,9 @@ while not doQuit:
                         break
                     
                     zoom_val =  c.metaInfo["zoom"]
-                    if key == "-":
+                    if key == "3":
                         zoom_val = zoom_val - 1;
-                    if key == "+":
+                    if key == "1":
                         zoom_val = zoom_val + 1;
                     c.setZoom(zoom_val)
                     myPrint(zoom_val)
@@ -353,7 +354,7 @@ while not doQuit:
         for t in st: t.join()
 
     if key == '0':
-        myPrint("Do you realy wont to Quit?(1/0)")
+        myPrint("Do you realy wont to Quit?(1/0)\n")
         if pullKey() == "1":
             doQuit = True
             for c in cams:

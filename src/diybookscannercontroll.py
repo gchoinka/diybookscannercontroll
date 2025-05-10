@@ -1,5 +1,5 @@
-#!/usr/bin/python3.3
 # -*- coding: utf-8 -*-
+from contextlib import ExitStack
 import queue
 import chdkptp
 import pprint
@@ -13,7 +13,6 @@ import errno
 import code
 import random
 import time
-import readline
 from bottle import route, template
 import bottle
 from collections import deque
@@ -27,7 +26,7 @@ def myPrint(message):
     sys.stdout.write(message)
     outputQueue.put(message)
     
-chdkptpBin=os.path.expandvars("$HOME")+"/opt/chdkptp/chdkptp.sh"
+chdkptpBin="C:/Users/gerar/source/repos/diybookscannercontroll/third_party/chdkptp-r1528/chdkptp.exe"
 
 diybookscanercontrol_dirs = {
         "scriptdir":os.path.dirname(os.path.abspath(__file__)), 
@@ -222,143 +221,152 @@ def wait_for_keypress(message=""):
     myPrint(message+"press any key\n")
     return pullKey()
 
+def main():
+    with ExitStack() as stack:
+        cams = [stack.enter_context(c) for c in chdkptp.getCams(diybookscanercontrol_dirs["datadir"], chdkptpBin)]
+        for c in cams:
+            c.call("rs")
+            time.sleep(5)
 
-cams = chdkptp.getCams(diybookscanercontrol_dirs["datadir"], chdkptpBin)
 
-if len(cams) != 3:
-    myPrint("need 3 cams! going to exit\n")
-    #exit()
+if __name__ == "__main__":
+    main()
+
+
+# if len(cams) != 3:
+#     myPrint("need 3 cams! going to exit\n")
+#     exit()
            
 
 
-postfix="raw/image%%04d%%s"
-easy_imagepattern = "%s/%%s/%s"%(diybookscanercontrol_dirs["bookdir"],postfix)
-imagepattern = easy_imagepattern % "noname"
+# postfix="raw/image%%04d%%s"
+# easy_imagepattern = "%s/%%s/%s"%(diybookscanercontrol_dirs["bookdir"],postfix)
+# imagepattern = easy_imagepattern % "noname"
 
 
 
-camsDict = {}
-for i in range(0,len(cams)):
-    c=cams[i]
+# camsDict = {}
+# for i in range(0,len(cams)):
+#     c=cams[i]
     
-    c.loadMetaInfo();
-    c.call("rec")            
-    c.call("lua exit_alt()\n")
-    c.call("luar set_prop(143,2)\n") # flash off
-    c.call("luar set_prop(5,0)\n") # af light off
+#     c.loadMetaInfo()
+#     c.call("rec")            
+#     c.call("lua exit_alt()\n")
+#     c.call("luar set_prop(143,2)\n") # flash off
+#     c.call("luar set_prop(5,0)\n") # af light off
     
-    zoom_val = 0;
-    if "zoom" in c.metaInfo:
-        zoom_val =  c.metaInfo["zoom"]
+#     zoom_val = 0
+#     if "zoom" in c.metaInfo:
+#         zoom_val =  c.metaInfo["zoom"]
        
-    c.setZoom(zoom_val)
+#     c.setZoom(zoom_val)
     
-    camsDict[c.getName()] = c
+#     camsDict[c.getName()] = c
     
 
 
-wt = WebThread()
-wt.daemon = True
-wt.start()
-wait_for_keypress("AFL ")    
-keyQueue.put("1")
-keyQueue.put("3")
-keyQueue.put("k")
+# wt = WebThread()
+# wt.daemon = True
+# wt.start()
+# wait_for_keypress("AFL ")    
+# keyQueue.put("1")
+# keyQueue.put("3")
+# keyQueue.put("k")
 
-keyQueue.put("1")
-keyQueue.put("8")
+# keyQueue.put("1")
+# keyQueue.put("8")
 
-lastnumber=0
+# lastnumber=0
 
 
 
-doQuit=False
-while not doQuit:    
-    myPrint("\n 1:setup 0:quit %04d (%s)>>" % (imagenumber, bookname))
-    key = pullKey()
+# doQuit=False
+# while not doQuit:    
+#     myPrint("\n 1:setup 0:quit %04d (%s)>>" % (imagenumber, bookname))
+#     key = pullKey()
     
-    workcams = []
+#     workcams = []
 
-    if key == 'y':
-        imagenumber = lastnumber
-        continue
+#     if key == 'y':
+#         imagenumber = lastnumber
+#         continue
              
-    if key == 'k':
-        workcams.append(camsDict["rig"])
-        workcams.append(camsDict["lef"])
-        #pygame.mixer.music.play()
+#     if key == 'k':
+#         workcams.append(camsDict["rig"])
+#         workcams.append(camsDict["lef"])
+#         #pygame.mixer.music.play()
                
-    if key == 'u':
-        wait_for_keypress()
-        workcams.append(camsDict["lef"])
+#     if key == 'u':
+#         wait_for_keypress()
+#         workcams.append(camsDict["lef"])
         
-    if key == 'm':
-        wait_for_keypress()
-        workcams.append(camsDict["rig"])
+#     if key == 'm':
+#         wait_for_keypress()
+#         workcams.append(camsDict["rig"])
 
-    if key == 'j':
-        wait_for_keypress()
-        workcams.append(camsDict["a4h"])
+#     if key == 'j':
+#         wait_for_keypress()
+#         workcams.append(camsDict["a4h"])
                     
     
-    if key == '1':
-        myPrint("\n")        
-        myPrint("3: AFL\n")
-        myPrint("5: zoom\n")
-        myPrint("6: shutdown cams\n")
-        myPrint("8: new book\n")
-        myPrint("0: exit\n")
-        choosed = pullKey()
+#     if key == '1':
+#         myPrint("\n")        
+#         myPrint("3: AFL\n")
+#         myPrint("5: zoom\n")
+#         myPrint("6: shutdown cams\n")
+#         myPrint("8: new book\n")
+#         myPrint("0: exit\n")
+#         choosed = pullKey()
         
-        if choosed == '8' :
-            imagepattern = easy_imagepattern % bookname
-            mkdir_p(os.path.dirname(imagepattern))
-        elif choosed == '4':
-            pass
-            #imagenumber = int(rlinput("number >>\n", "0"))
-        elif choosed == '3':
-            wait_for_keypress()
-            for c in cams:
-                c.call("""lua click("shoot_half")""")
-            time.sleep(2)
-            for c in cams:
-                c.call("lua set_aflock(1)")
-        elif choosed == '5':
-            myPrint("1 zoom in | 3 zoom out | 0 exit \n")
-            for c in cams:
-                myPrint("cam %s\n" % c.getName())
-                while True:
-                    key = pullKey()
-                    if key == '0':
-                        break
+#         if choosed == '8' :
+#             imagepattern = easy_imagepattern % bookname
+#             mkdir_p(os.path.dirname(imagepattern))
+#         elif choosed == '4':
+#             pass
+#             #imagenumber = int(rlinput("number >>\n", "0"))
+#         elif choosed == '3':
+#             wait_for_keypress()
+#             for c in cams:
+#                 c.call("""lua click("shoot_half")""")
+#             time.sleep(2)
+#             for c in cams:
+#                 c.call("lua set_aflock(1)")
+#         elif choosed == '5':
+#             myPrint("1 zoom in | 3 zoom out | 0 exit \n")
+#             for c in cams:
+#                 myPrint("cam %s\n" % c.getName())
+#                 while True:
+#                     key = pullKey()
+#                     if key == '0':
+#                         break
                     
-                    zoom_val =  c.metaInfo["zoom"]
-                    if key == "3":
-                        zoom_val = zoom_val - 1;
-                    if key == "1":
-                        zoom_val = zoom_val + 1;
-                    c.setZoom(zoom_val)
-                    myPrint(zoom_val)
+#                     zoom_val =  c.metaInfo["zoom"]
+#                     if key == "3":
+#                         zoom_val = zoom_val - 1;
+#                     if key == "1":
+#                         zoom_val = zoom_val + 1;
+#                     c.setZoom(zoom_val)
+#                     myPrint(zoom_val)
                    
-        elif choosed == '6':
-            for c in cams:
-                c.call("shutdown")
+#         elif choosed == '6':
+#             for c in cams:
+#                 c.call("shutdown")
 
-    if len(workcams) > 0:
-        lastnumber = imagenumber 
-        st = []
-        for c in workcams:
-            st.append(ShootThread(c,  imagepattern%(imagenumber, c.getName())))
-            imagenumber+=1
-        for t in st: t.start()
-        for t in st: t.join()
+#     if len(workcams) > 0:
+#         lastnumber = imagenumber 
+#         st = []
+#         for c in workcams:
+#             st.append(ShootThread(c,  imagepattern%(imagenumber, c.getName())))
+#             imagenumber+=1
+#         for t in st: t.start()
+#         for t in st: t.join()
 
-    if key == '0':
-        myPrint("Do you realy wont to Quit?(1/0)\n")
-        if pullKey() == "1":
-            doQuit = True
-            for c in cams:
-                c.call("quit")
+#     if key == '0':
+#         myPrint("Do you realy wont to Quit?(1/0)\n")
+#         if pullKey() == "1":
+#             doQuit = True
+#             for c in cams:
+#                 c.call("quit")
 
 
 

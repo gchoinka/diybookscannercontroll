@@ -1,5 +1,3 @@
-#!/usr/bin/python3.3
-
 import subprocess
 from subprocess import PIPE
 import re
@@ -7,23 +5,7 @@ import json
 import threading
 from collections import deque
 import sys
-
-
-class PipeReadThread(threading.Thread): 
-    def __init__(self, pipe): 
-        threading.Thread.__init__(self) 
-        self.pipe = pipe
-        self.lineNum = 0
-        self.goOn = True
-        
-    def run(self): 
-        while self.goOn:
-            ch = self.pipe.read(1)
-            if ch == b'>':
-                self.lineNum = self.lineNum + 1
-            if ch == b'':
-                break
-        self.lineNum = self.lineNum + 1
+from time import sleep
 
 
 class Cam:
@@ -31,20 +13,28 @@ class Cam:
         self.metainfo_dic = {}
         self.busId = busId
         self.devId = devId
-        self.serialId = serialId;
+        self.serialId = serialId
         self.chdkptpBin = chdkptpBin
         self.name = ""
         self.pipeReader = None
         self._connect()
         self.metaInfo = {}
-        self.dataDir = dataDir;
+        self.dataDir = dataDir
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        self.subp.kill()
+        self.subp.wait(2)
 
     def _connect(self):
-        args = [self.chdkptpBin,  "-i"]
-        self.subp = subprocess.Popen(args, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE, bufsize=0)
-        self.pipeReader = PipeReadThread(self.subp.stdout)
-        self.pipeReader.start()
-        self.call("connect -b="+str(self.busId)+" -d="+str(self.devId)+"")
+        args = [self.chdkptpBin, "-i"]
+        self.subp = subprocess.Popen(args, shell=False, stdin=PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, bufsize=0)
+        # self.pipeReader = PipeReadThread(self.subp, self.subp.stdout)
+        # self.pipeReader.start()
+        self.call(f"connect -s={self.serialId}")
+
 
     def getName(self):
         if "name" in self.metaInfo:
@@ -53,11 +43,10 @@ class Cam:
             return "unknown"
         
     def call(self, cmd):
-        currentLine = self.pipeReader.lineNum;        
-        self.subp.stdin.write(bytes(cmd+"\n", 'ascii'))
+        print(cmd)
+        self.subp.stdin.write(bytes(cmd+"\r\n", 'ascii'))
         self.subp.stdin.flush()
-        while currentLine == self.pipeReader.lineNum:
-            pass
+
    
     def loadMetaInfo(self):
         fromFile = self._loadMetaInfo(self.dataDir)
@@ -94,8 +83,10 @@ class Cam:
 #-1:Canon PowerShot A495 b=001 d=031 v=0x4a9 p=0x31ef s=12385D16CC5C440E81B45F05F73B6D50
 def getCams(dataDir, chdkptpBin):
     chdkptpOutput = subprocess.check_output([chdkptpBin, "-elist"])
-    devmatch = re.findall(b'^(.*?):Canon PowerShot A49[05] b=([0-9]{3}) d=([0-9]{3}) v=([^ ]*) p=([^ ]*) s=(\S*)$', chdkptpOutput, re.MULTILINE)
     camList=[]
-    for (num, busId,devId, vtmp, ptmp, serialId) in devmatch:
-        camList.append(Cam(busId.decode(), devId.decode(), serialId.decode(), dataDir, chdkptpBin))
+    for line in chdkptpOutput.split(b'\n'):
+        devmatch = re.match(rb'^([-+]?\d+):(?P<name>.*) b=(?P<busId>\S*) d=(?P<devId>\S*) v=0x4a9 p=0x31ef s=(?P<serialId>\S*)', line)
+        if devmatch is not None:
+            g = devmatch.groupdict()
+            camList.append(Cam(g["busId"].decode(), g["devId"].decode(), g["serialId"].decode(), dataDir, chdkptpBin))
     return camList

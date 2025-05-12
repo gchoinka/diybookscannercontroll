@@ -6,8 +6,39 @@ import threading
 from collections import deque
 import sys
 from time import sleep
+from queue import Queue, Empty
+from concurrent.futures import ThreadPoolExecutor
 
 
+def enqueue_output(file, queue):
+    for line in iter(file.readline, ''):
+        queue.put(line)
+    file.close()
+
+class ThreadPipeReader(threading.Thread):
+    def __init__(self, pipe, proc):
+        super().__init__()
+        self.queue:Queue[str] = Queue()
+        self.pipe = pipe
+        self.proc = proc
+        self.retv = None
+
+    def run(self):
+        line = ""
+        while ch := self.pipe.read(1):
+            line += ch
+            if re.match(r"con\s?\d*>", line):
+                self.queue.put(str(line))
+                line = ""
+            if ch == "\n":
+                self.queue.put(str(line))
+                line = ""
+            if retv := self.proc.poll() is not None:
+                self.retv = retv
+                break
+        self.pipe.close()
+
+        
 class Cam:
     def __init__(self, busId, devId, serialId, dataDir, chdkptpBin):
         self.metainfo_dic = {}
@@ -16,8 +47,10 @@ class Cam:
         self.serialId = serialId
         self.chdkptpBin = chdkptpBin
         self.name = ""
-        self.pipeReader = None
+        self.q_stdout = None
+        self.q_stderr = None
         self._connect()
+
         self.metaInfo = {}
         self.dataDir = dataDir
 
@@ -30,10 +63,13 @@ class Cam:
 
     def _connect(self):
         args = [self.chdkptpBin, "-i"]
-        self.subp = subprocess.Popen(args, shell=False, stdin=PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, bufsize=0)
-        # self.pipeReader = PipeReadThread(self.subp, self.subp.stdout)
-        # self.pipeReader.start()
-        self.call(f"connect -s={self.serialId}")
+        self.subp = subprocess.Popen(args, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True, bufsize=1)
+        self.q_stdout = ThreadPipeReader(self.subp.stdout, self.subp)
+        self.q_stderr = ThreadPipeReader(self.subp.stderr, self.subp)
+        self.q_stdout.start()
+        self.q_stderr.start()
+        self.call(f"connect -b={str(self.busId)} -d={str(self.devId)}", wait=False)
+
 
 
     def getName(self):
@@ -42,10 +78,24 @@ class Cam:
         else:
             return "unknown"
         
-    def call(self, cmd):
-        print(cmd)
-        self.subp.stdin.write(bytes(cmd+"\r\n", 'ascii'))
+    def call(self, cmd:str, wait:bool=True):
+        while True:
+            try:
+                out_line = self.q_stdout.queue.get_nowait()
+                # print("flushing line " + out_line.strip())
+            except Empty:
+                break
+
+        self.subp.stdin.write(cmd+"\n")
         self.subp.stdin.flush()
+        while True and wait:
+            try:
+                line = self.q_stdout.queue.get_nowait()
+                # print("got new line " + line.strip())
+                if re.match(r"con\s?\d*>.*",  line):
+                    break
+            except Empty:
+                pass
 
    
     def loadMetaInfo(self):
@@ -79,8 +129,6 @@ class Cam:
         self.metaInfo["zoom"] = zoom
         self.storMetaInfo()
         
-
-#-1:Canon PowerShot A495 b=001 d=031 v=0x4a9 p=0x31ef s=12385D16CC5C440E81B45F05F73B6D50
 def getCams(dataDir, chdkptpBin):
     chdkptpOutput = subprocess.check_output([chdkptpBin, "-elist"])
     camList=[]

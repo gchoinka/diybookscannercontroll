@@ -16,8 +16,9 @@ import time
 from bottle import route, template
 import bottle
 from collections import deque
-
+from pathlib import Path
 from datetime import date
+from concurrent.futures import ThreadPoolExecutor
 
 keyQueue = queue.Queue()
 outputQueue = queue.Queue()
@@ -25,8 +26,11 @@ outputQueue = queue.Queue()
 def myPrint(message):
     sys.stdout.write(message)
     outputQueue.put(message)
-    
-chdkptpBin="C:/Users/gerar/source/repos/diybookscannercontroll/third_party/chdkptp-r1528/chdkptp.exe"
+
+import os
+
+script_path = (Path(__file__).parent / "..").absolute()
+chdkptp_bin = (script_path / "third_party/chdkptp-r1528-Linux-aarch64/chdkptp.sh").absolute()
 
 diybookscanercontrol_dirs = {
         "scriptdir":os.path.dirname(os.path.abspath(__file__)), 
@@ -221,12 +225,23 @@ def wait_for_keypress(message=""):
     myPrint(message+"press any key\n")
     return pullKey()
 
+def shoot_for_ever(args):
+    cam, filename = args
+    # print(f"{cam} {filename}")
+    while True:
+        cam.call(f'rs "{filename}"')
+
 def main():
     with ExitStack() as stack:
-        cams = [stack.enter_context(c) for c in chdkptp.getCams(diybookscanercontrol_dirs["datadir"], chdkptpBin)]
-        for c in cams:
-            c.call("rs")
-            time.sleep(5)
+        cams = [stack.enter_context(c) for c in chdkptp.getCams(diybookscanercontrol_dirs["datadir"], chdkptp_bin)]
+        print(cams)
+        __import__('IPython', globals(), locals(), [], 0).embed()
+        list(c.call("rec") for c in cams)
+        with ThreadPoolExecutor(2) as pool:
+            value = pool.map(shoot_for_ever, [(c, f) for c, f in zip(cams, ["imgL.jpg", "imgR.jpg"])])
+        # for c in cams:
+        #     c.call("rec")
+        #     c.call("rs")
 
 
 if __name__ == "__main__":
